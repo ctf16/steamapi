@@ -15,7 +15,7 @@ This project expects you to already have the following installed:
 
 To run the automated validation and testing script, you must be in the `pq-readiness/api_security/k3d-api-nginx-ingress` directory. 
 
-The `validate_tests.sh` script automates starting the cluster and doing some basic tests over both HTTP (port 80) and HTTPS (port 443), as well as basic validation to ensure the proper certificate is being used by the ingress controller. It also provides some instructions on how to inspect the TLS handshake packets using Wireshark, with automated packet capture for a single HTTPS query handled by the script. 
+The `autotest.sh` script automates starting the cluster and doing some basic tests over both HTTP (port 80) and HTTPS (port 443), as well as basic validation to ensure the proper certificate is being used by the ingress controller. It also provides some instructions on how to inspect the TLS handshake packets using Wireshark, with automated packet capture for a single HTTPS query handled by the script. 
 
 Due to the nature of capturing packets on port 443 (HTTPS), the script must be run as root. 
 
@@ -26,7 +26,7 @@ The script takes one parameter, your Steam Web API key. If you have a Steam acco
 ```
 $ pwd
 .../pq-readiness/api_security/k3d-api-nginx-ingress
-$ sudo ./validate_tests.sh "APIKEY"
+$ sudo ./autotest.sh "APIKEY"
 ```
 
 This will create a new `debug/` directory, where the script generates the `openssl.pcap` and `openssl_handshake.txt` files. The `openssl_handshake.txt` file contains the output of an OpenSSL `s_client -connect` command, and it only referenced if the certificate subject is invalid. The `openssl.pcap` file contains the captured packets from a single OpenSSL `s_client -connect` query, which can then be viewed in a network traffic analysis program, such as Wireshark. It shows the packets containing the TLS handshake (Client Hello, Server Hello). The capture proves that the client and server agree on X25519MLKEM768 for the `key_share` extension. 
