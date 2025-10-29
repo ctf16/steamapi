@@ -10,6 +10,7 @@ This project expects you to already have the following installed:
 - [`curl`](https://curl.se/docs/install.html)
 - OpenSSL 3.X
 - [Wireshark](https://www.wireshark.org/#download)
+- A [Steam Web API Key](https://steamcommunity.com/dev)
 
 ## Usage
 
@@ -29,7 +30,9 @@ $ pwd
 $ sudo ./autotest.sh [-FLAGS] [ARGS]
 ```
 
-This will create a new `debug/` directory, where the script generates the `openssl.pcap` and `openssl_handshake.txt` files. The `openssl_handshake.txt` file contains the output of an OpenSSL `s_client -connect` command, and it only referenced if the certificate subject is invalid. The `openssl.pcap` file contains the captured packets from a single OpenSSL `s_client -connect` query, which can then be viewed in a network traffic analysis program, such as Wireshark. It shows the packets containing the TLS handshake (Client Hello, Server Hello). The capture proves that the client and server agree on X25519MLKEM768 for the `key_share` extension. See the **Wireshark packet inspection** section for more details.  
+For a premade command that runs a default version of the `autotest.sh` script, use `sudo ./autotest.sh -k "YOUR_APIKEY" -v0`. This command will run a silenced set of tests.  
+
+The `autotest.sh` script will create a new `debug/` directory, where the script generates the `openssl.pcap` and `openssl_handshake.txt` files. The `openssl_handshake.txt` file contains the output of an OpenSSL `s_client -connect` command, and it only referenced if the certificate subject is invalid. The `openssl.pcap` file contains the captured packets from a single OpenSSL `s_client -connect` query, which can then be viewed in a network traffic analysis program, such as Wireshark. It shows the packets containing the TLS handshake (Client Hello, Server Hello). The capture proves that the client and server agree on X25519MLKEM768 for the `key_share` extension. See the **Wireshark packet inspection** section for more details.  
 
 ### Runtime options
 
