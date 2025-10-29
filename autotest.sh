@@ -1,19 +1,5 @@
 #!/bin/sh
 
-
-
-loading_animation() {
-	printf "Working"
-	while :; do
-		for i in 1 2 3; do
-			printf "\rWorking"
-			printf "%${i}s" | tr ' ' '.'
-			sleep 1
-		done
-		printf "\r\033[KWorking"
-	done
-}
-
 build_anim() {
 	printf "Building"
 	while :; do
@@ -61,13 +47,35 @@ HTTPS_APIURL="https://localhost/api"
 
 # Pull API Key from arguments
 # ===========================
-APIKEY="$1"
-if [ -z "$APIKEY" ]; then
-	echo "Error: missing APIKEY parameter."
+APIKEY=""
+VERBOSE=0
+STEAMID="oblivion_rl"
+while getopts ":k:v:u:" opt; do
+	case "$opt" in
+		k)	
+			APIKEY="$OPTARG"
+			;;
+		v)	
+			VERBOSE="$OPTARG"
+			;;
+		u)	
+			STEAMID="$OPTARG"
+			;;
+		\?)	
+			echo "Error: Invalid option -$OPTARG" >&2
+			exit 1
+			;;
+		:)	
+			echo "Error: Option -$OPTARG requires an argument." >&2
+			exit 1
+			;;
+	esac
+done
+
+if [ -z $APIKEY ]; then
+	echo "Error: Missing API key. Use -k <key>" >&2
 	exit 1
 fi
-
-
 
 echo "--------------------------------------------------"
 echo "----- Starting k3d cluster validation script -----"
@@ -105,35 +113,75 @@ echo "-------------------------------"
 
 # Build docker images
 # echo "----- Building Docker images -----"
-build_anim & BUILDER_PID=$!
-docker build -q -t steamuserapi-frontend:latest frontend/ >/dev/null
-docker build -q -t steamuserapi-api:latest api/ >/dev/null
-kill "$BUILDER_PID" >/dev/null 2>&1
-echo " "
+if [ $VERBOSE -eq 1 ]; then
+	docker build -t steamuserapi-frontend:latest frontend/
+	docker build -t steamuserapi-api:latest api/
+	echo " "
+else
+	build_anim & BUILDER_PID=$!
+	docker build -q -t steamuserapi-frontend:latest frontend/ \
+		>/dev/null
+	docker build -q -t steamuserapi-api:latest api/ \
+		>/dev/null
+	kill "$BUILDER_PID" \
+		>/dev/null 2>&1
+	printf " Done!"
+	echo " "
+fi
 
 # Start k3d cluster
 # echo "----- Creating cluster and namespace -----"
-cluster_anim & CLUSTERER_PID=$!
-k3d cluster create steamapi -s 1 -a 1 -p "8080:80@loadbalancer" -p "443:443@loadbalancer" --k3s-arg "--disable=traefik@server:*" >/dev/null
-kubectl create namespace steamuserapi >/dev/null
+if [ $VERBOSE -eq 1 ]; then
+	k3d cluster create steamapi -s 1 -a 1 \
+		-p "8080:80@loadbalancer" -p "443:443@loadbalancer" \
+		--k3s-arg "--disable=traefik@server:*"
+	kubectl create namespace steamuserapi
 
-# Import images into cluster
-# echo "----- Importing images into cluster -----"
-k3d image import steamuserapi-frontend:latest -c steamapi >/dev/null
-k3d image import steamuserapi-api:latest -c steamapi >/dev/null
-kill "$CLUSTERER_PID" >/dev/null 2>&1
-echo " "
+	k3d image import steamuserapi-frontend:latest -c steamapi
+	k3d image import steamuserapi-api:latest -c steamapi
+	echo " "
+else
+	cluster_anim & CLUSTERER_PID=$!
+	k3d cluster create steamapi -s 1 -a 1 \
+		-p "8080:80@loadbalancer" -p "443:443@loadbalancer" \
+		--k3s-arg "--disable=traefik@server:*" \
+		>/dev/null
+	kubectl create namespace steamuserapi \
+		>/dev/null
 
-# echo "----- Grabbing ingress-nginx image -----"
-helm_anim & HELMER_PID=$!
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
-helm repo update >/dev/null
-helm install nginx-ingress ingress-nginx/ingress-nginx --namespace steamuserapi \
-     --set controller.publishService.enabled=true >/dev/null
-kill "$HELMER_PID" >/dev/null 2>&1
-echo " "
+	k3d image import steamuserapi-frontend:latest -c steamapi \
+		>/dev/null
+	k3d image import steamuserapi-api:latest -c steamapi \
+		>/dev/null
+	kill "$CLUSTERER_PID" \
+		>/dev/null 2>&1
+	printf " Done!"
+	echo " "
+fi
+
+if [ $VERBOSE -eq 1 ]; then
+	helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+	helm repo update 
+	helm install nginx-ingress ingress-nginx/ingress-nginx --namespace steamuserapi \
+		--set controller.publishService.enabled=true
+	echo " "
+else
+	helm_anim & HELMER_PID=$!
+	helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx \
+		>/dev/null
+	helm repo update \
+		>/dev/null
+	helm install nginx-ingress ingress-nginx/ingress-nginx --namespace steamuserapi \
+     		--set controller.publishService.enabled=true \
+		>/dev/null
+	kill "$HELMER_PID" \
+		>/dev/null 2>&1
+	printf " Done!"
+	echo " "
+fi
 
 # Generate TLS certificate and secret
+echo "----- Generating TLS certificate -----"
 openssl req -x509 \
         -new -subj "/CN=localhost" \
         -newkey rsa:4096 \
@@ -143,11 +191,14 @@ openssl req -x509 \
         -provider oqsprovider \
         -out tls.crt \
         -keyout tls.key
+echo "Done."
 
+echo "----- Creating TLS secret -----"
 kubectl create secret tls nginx-secret \
         --cert=tls.crt \
         --key=tls.key \
         -n steamuserapi
+echo "Done."
 
 echo "----- Waiting for ingress controller pod -----"
 kubectl wait --for=condition=Ready pod -n steamuserapi --selector=app.kubernetes.io/component=controller --timeout=60s
@@ -172,7 +223,7 @@ echo "--------------------------------------------"
 kubectl get pods -n "$NAMESPACE"
 echo " "
 kubectl wait --for=condition=Ready pods --all -n "$NAMESPACE" --timeout=60s
-sleep 2
+sleep 3
 echo "----- All pods ready -----"
 # =============================================
 
@@ -185,14 +236,23 @@ echo " "
 echo "------------------------------------------------------------------"
 echo "----- Testing simple connectivity to API over HTTP with cURL -----"
 echo "------------------------------------------------------------------"
-curl -v localhost:8080/api
+if [ $VERBOSE -eq 1 ]; then
+	curl -v localhost:8080/api
+else
+	curl localhost:8080/api
+fi
+
 
 echo " "
 echo " "
 echo "------------------------------------------------------------"
 echo "----- Testing simple API retrieval over HTTP with cURL -----"
 echo "------------------------------------------------------------"
-curl -v -H "X-API-KEY: $APIKEY" "localhost:8080/api/steamuser?steamid=oblivion_rl"
+if [ $VERBOSE -eq 1 ]; then
+	curl -v -H "X-API-Key: $APIKEY" "localhost:8080/api/steamuser?steamid=$STEAMID"
+else
+	curl -H "X-API-Key: $APIKEY" "localhost:8080/api/steamuser?steamid=$STEAMID"
+fi
 # ===============
 
 
@@ -204,14 +264,23 @@ echo " "
 echo "------------------------------------------------------------"
 echo "----- Testing connectivity to API over HTTPS with cURL -----"
 echo "------------------------------------------------------------"
-curl -vk "https://localhost/api"
+if [ $VERBOSE -eq 1 ]; then
+	curl -vk "https://localhost/api"
+else
+	curl -k "https://localhost/api"
+fi
+
 
 echo " "
 echo " "
 echo "------------------------------------------------------"
 echo "----- Testing API retrieval over HTTPS with cURL -----"
 echo "------------------------------------------------------"
-curl -k -H "X-API-Key: $APIKEY" "https://localhost/api/steamuser?steamid=oblivion_rl"
+if [ $VERBOSE -eq 1 ]; then
+	curl -vk -H "X-API-Key: $APIKEY" "https://localhost/api/steamuser?steamid=$STEAMID"
+else
+	curl -k -H "X-API-Key: $APIKEY" "https://localhost/api/steamuser?steamid=$STEAMID"
+fi
 # ================
 
 
@@ -267,10 +336,14 @@ echo "	1. Open Wireshark (or download from https://www.wireshark.org/#download)"
 echo "	2. Go to File -> Open -> Choose the openssl.pcap file."
 echo "	3. In the display filter search bar, type 'tls.handshake' and press Enter"
 echo "	4. To find key_share details: "
-echo "		4.1. In the 'Client Hello' packet, expand the 'Transport Layer Security -> TLSv1.3 Record Layer: Handshake Procotol -> Handshake Protocol: Client Hello' field and find the 'Extension: key_share' line. It should say 'X25519MLKEM768', " 
-echo "			indicating that the client is requesting a TLS handshake using the X25519MLKEM768 key exchange."
-echo "		4.2. In the 'Server Hello' packet, expand the 'Transport Layer Security -> TLSv1.3 Record Layer: Handshake Protocol -> Handshake Protocol: Server Hello' field and find the 'Extension: key_share' line. It should say 'X25519MLKEM768', "
-echo "			indicating that the cluster has agreed to X25519MLKEM768 key exchange."
+echo "		4.1. In the 'Client Hello' packet, expand the" 
+echo "		'Transport Layer Security -> TLSv1.3 Record Layer: Handshake Procotol -> Handshake Protocol: Client Hello'" 
+echo "		field and find the 'Extension: key_share' line. It should say 'X25519MLKEM768', " 
+echo "		indicating that the client is requesting a TLS handshake using the X25519MLKEM768 key exchange."
+echo "		4.2. In the 'Server Hello' packet, expand the" 
+echo "		'Transport Layer Security -> TLSv1.3 Record Layer: Handshake Protocol -> Handshake Protocol: Server Hello'" 
+echo "		field and find the 'Extension: key_share' line. It should say 'X25519MLKEM768', "
+echo "		indicating that the cluster has agreed to X25519MLKEM768 key exchange."
 echo " "
 # ======================
 
