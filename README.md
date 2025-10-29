@@ -8,7 +8,7 @@ This project expects you to already have the following installed:
 - [k3d](https://k3d.io/stable/#releases)
 - [Docker Desktop + CLI](https://www.docker.com/products/docker-desktop/)
 - [`curl`](https://curl.se/docs/install.html)
-- OpenSSL
+- OpenSSL 3.X
 - [Wireshark](https://www.wireshark.org/#download)
 
 ## Usage
@@ -21,19 +21,39 @@ Due to the nature of capturing packets on port 443 (HTTPS), the script must be r
 
 ### Automated Script
 
-The script takes one parameter, your Steam Web API key. If you have a Steam account, a Steam Web API key can be generated [here](https://steamcommunity.com/dev/apikey). 
+The automated script can by run using the following command. As a reminder, you **MUST** be in the directory shown on line 2 below. 
 
 ```
 $ pwd
 .../pq-readiness/api_security/k3d-api-nginx-ingress
-$ sudo ./autotest.sh "APIKEY"
+$ sudo ./autotest.sh [-FLAGS] [ARGS]
 ```
 
-This will create a new `debug/` directory, where the script generates the `openssl.pcap` and `openssl_handshake.txt` files. The `openssl_handshake.txt` file contains the output of an OpenSSL `s_client -connect` command, and it only referenced if the certificate subject is invalid. The `openssl.pcap` file contains the captured packets from a single OpenSSL `s_client -connect` query, which can then be viewed in a network traffic analysis program, such as Wireshark. It shows the packets containing the TLS handshake (Client Hello, Server Hello). The capture proves that the client and server agree on X25519MLKEM768 for the `key_share` extension. 
+This will create a new `debug/` directory, where the script generates the `openssl.pcap` and `openssl_handshake.txt` files. The `openssl_handshake.txt` file contains the output of an OpenSSL `s_client -connect` command, and it only referenced if the certificate subject is invalid. The `openssl.pcap` file contains the captured packets from a single OpenSSL `s_client -connect` query, which can then be viewed in a network traffic analysis program, such as Wireshark. It shows the packets containing the TLS handshake (Client Hello, Server Hello). The capture proves that the client and server agree on X25519MLKEM768 for the `key_share` extension. See the **Wireshark packet inspection** section for more details.  
+
+### Runtime options
+
+The script takes several arguments, some optional.                                                                
+
+#### `-k <key>`
+
+The `-k` flag specifies your Steam Web API key. If you have a Steam account, a Steam Web API key can be generated [here](https://steamcommunity.com/dev/apikey). This option is **REQUIRED**.
+
+#### `-v`
+
+The `-v` flag sets the verbosity of the script's output. There are two possibilities:
+- `-v1` sets maximum verbosity
+- `-v0` sets the minimum verbosity, sending most output to `>/dev/null`
+
+This option is **OPTIONAL**, and defaults to `-v0`.
+
+#### `-u <user>`
+
+The `-u` flag specifies the desired Steam user's vanity URL. This option is **OPTIONAL**, and defaults to `oblivion_rl`, my Steam profile.
 
 ### Wireshark packet inspection
 
-To open the `openssl.pcap` file in Wireshark, open Wireshark and go to `File -> Open` and select the `openssl.pcap`. Once the capture file is open, go to the filter search bar and type `tls.handshake` and press Enter. 
+To open the `openssl.pcap` file in Wireshark, open Wireshark and go to `File -> Open` and select the `openssl.pcap`. Once the capture file is open, go to the filter search bar and type `tls.handshake` and press Enter. You can inspect the KEM proposed by the client by expanding `{Client/Server} Hello -> Transport Layer Security -> TLSv1.3 Record Layer: Handshake Protocol -> Handshake Protocol: {Client/Server} Hello -> Extension: key_share` 
 
 ### Cleanup
 
