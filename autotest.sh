@@ -281,6 +281,18 @@ if [ $VERBOSE -eq 1 ]; then
 else
 	curl -k -H "X-API-Key: $APIKEY" "https://localhost/api/steamuser?steamid=$STEAMID"
 fi
+
+
+echo " "
+echo " "
+echo "------------------------------------------------------"
+echo "----- Testing API retrieval over HTTPS with cURL -----"
+echo "------------------------------------------------------"
+if [ $VERBOSE -eq 1 ]; then
+	curl -vk -H "X-API-Key: $APIKEY" "https://localhost/api/games?steamid=$STEAMID"
+else
+	curl -k -H "X-API-Key: $APIKEY" "https://localhost/api/games?steamid=$STEAMID"
+fi
 # ================
 
 
